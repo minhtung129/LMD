@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Delivery CO2 Analyzer</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --primary: #1e293b;
+            --secondary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #334155;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 30px 15px; 
+            background-color: var(--bg-color); 
+            color: var(--text-main); 
+        }
+
+        .dashboard { 
+            max-width: 850px; 
+            margin: auto; 
+            background: var(--card-bg); 
+            border-radius: 16px; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01); 
+            overflow: hidden; 
+        }
+
+        /* Header */
+        .header { 
+            background: linear-gradient(135deg, var(--primary), #0f172a); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        .header h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;}
+        .header p { margin: 8px 0 0; color: #94a3b8; font-size: 15px; font-weight: 400;}
+
+        /* Body Content */
+        .body-content { padding: 30px; }
+
+        .input-group { position: relative; margin-bottom: 20px; } 
+        label { font-weight: 600; display: block; margin-bottom: 8px; font-size: 14px; color: var(--primary); }
+        
+        .flex-row { display: flex; gap: 10px; position: relative; }
+        .flex-row input[type="text"] { 
+            flex: 1; padding: 14px 16px; border: 1px solid var(--border); 
+            border-radius: 10px; font-size: 15px; font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease; background-color: #f1f5f9;
+        }
+        .flex-row input[type="text"]:focus { 
+            background-color: #fff; border-color: var(--secondary); 
+            outline: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); 
+        }
+        
+        .btn-gps { 
+            padding: 0 16px; background-color: #eff6ff; color: var(--secondary); 
+            border: 1px solid #bfdbfe; border-radius: 10px; cursor: pointer; 
+            font-weight: 600; font-size: 14px; transition: 0.2s;
+        }
+        .btn-gps:hover { background-color: var(--secondary); color: white; border-color: var(--secondary); }
+
+        /* Nút Tính Toán */
+        button.calc-btn { 
+            width: 100%; padding: 16px; background: linear-gradient(to right, var(--success), #059669); 
+            color: white; border: none; border-radius: 10px; font-size: 16px; 
+            cursor: pointer; font-weight: 600; margin-top: 10px; transition: 0.3s;
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+        }
+        button.calc-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.3); }
+
+        /* Danh sách Auto-complete */
+        .suggestions-list { 
+            position: absolute; top: 100%; left: 0; right: 0; background: white; 
+            border: 1px solid var(--border); z-index: 1000; max-height: 250px; overflow-y: auto; 
+            border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin-top: 5px;
+        }
+        .suggestion-item { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background-color: #f0fdf4; color: var(--success); font-weight: 500; }
+        
+        /* Loading */
+        .loading { color: var(--secondary); font-size: 14px; margin-top: 15px; display: none; text-align: center; font-weight: 500;}
+        .loading i { margin-right: 8px; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Khu vực Kết quả (KPI Cards) */
+        .result-box { display: none; margin-top: 30px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;}
+        .result-header h3 { margin: 0; font-size: 18px; color: var(--primary); }
+        
+        .traffic-status { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: white; display: inline-flex; align-items: center; gap: 6px;}
+        .status-fast { background-color: var(--success); }
+        .status-slow { background-color: var(--warning); }
+        .status-jam { background-color: var(--danger); }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .kpi-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 15px; text-align: center; }
+        .kpi-card .icon { font-size: 20px; margin-bottom: 8px; color: var(--text-muted); }
+        .kpi-card .title { font-size: 13px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;}
+        .kpi-card .value { font-size: 22px; font-weight: 700; color: var(--primary); margin-top: 5px; }
+        .kpi-card .sub-value { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        
+        .kpi-co2 { background: #fef2f2; border-color: #fecaca; }
+        .kpi-co2 .icon { color: var(--danger); }
+        .kpi-co2 .value { color: var(--danger); }
+
+        .instruction { font-size: 13px; color: var(--secondary); font-weight: 500; text-align: center; margin-bottom: 15px; background: #eff6ff; padding: 10px; border-radius: 8px;}
+
+        /* Báo cáo tác động */
+        .compare-box { margin-bottom: 20px; padding: 20px; background-color: #fff; border: 2px dashed #fca5a5; display: none; border-radius: 12px; }
+        .compare-title { color: var(--danger); margin: 0 0 10px 0; font-size: 16px; font-weight: 700; text-align: center; }
+        .compare-stats { display: flex; justify-content: space-around; margin-top: 15px; text-align: center;}
+        .stat-item { flex: 1; }
+        .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px;}
+        .diff-bad { color: var(--danger); font-weight: 700; font-size: 15px;}
+        .diff-good { color: var(--success); font-weight: 700; font-size: 15px;}
+
+        /* Bản đồ */
+        #map { height: 450px; width: 100%; border-radius: 12px; display: none; border: 1px solid var(--border); z-index: 1; }
+        
+        @media (max-width: 600px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="header">
+        <h2><i class="fa-solid fa-leaf"></i> Green Last-Mile Delivery</h2>
+        <p>Hệ thống Đánh giá CO2 & Định tuyến Động (Dự án NCKH)</p>
+    </div>
+
+    <div class="body-content">
+        <div class="input-group">
+            <label><i class="fa-solid fa-box"></i> Vị trí Xuất phát / Điểm hiện tại:</label>
+            <div class="flex-row">
+                <input type="text" id="startInput" placeholder="Nhập tên đường, tòa nhà..." autocomplete="off">
+                <button id="btnGPS" class="btn-gps" title="Lấy tọa độ GPS hiện tại"><i class="fa-solid fa-location-crosshairs"></i> Vị trí</button>
+                <div id="startList" class="suggestions-list"></div>
+            </div>
+        </div>
+        
+        <div class="input-group">
+            <label><i class="fa-solid fa-flag-checkered"></i> Điểm Giao hàng:</label>
+            <div class="flex-row">
+                <input type="text" id="endInput" placeholder="Nhập ngõ ngách, địa chỉ khách hàng..." autocomplete="off">
+                <div id="endList" class="suggestions-list"></div>
+            </div>
+        </div>
+
+        <button id="btnTinhToan" class="calc-btn"><i class="fa-solid fa-route"></i> Phân tích Lộ trình & CO2</button>
+
+        <div id="loadingText" class="loading"><i class="fa-solid fa-circle-notch"></i> Hệ thống đang chạy thuật toán đa lộ trình...</div>
+
+        <div id="resultBox" class="result-box">
+            <div class="instruction"><i class="fa-solid fa-lightbulb"></i> Bấm vào các đường nét đứt trên bản đồ để xem Báo cáo đánh đổi môi trường (Trade-off).</div>
+            
+            <div class="result-header">
+                <h3><i class="fa-solid fa-star" style="color:#f59e0b;"></i> Lộ trình Tối ưu nhất</h3>
+                <span id="resTraffic" class="traffic-status status-fast"><i class="fa-solid fa-check-circle"></i> Bình thường</span>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="icon"><i class="fa-solid fa-ruler-combined"></i></div>
+                    <div class="title">Tổng Quãng Đường</div>
+                    <div class="value"><span id="resDistance">0</span> km</div>
+                    <div class="sub-value">Thoáng: <span id="resDistBth">0</span> | Tắc: <span id="resDistTac">0</span></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="icon"><i class="fa-solid fa-clock"></i></div>
+                    <div class="title">Thời Gian Dự Kiến</div>
+                    <div class="value"><span id="resDuration">0</span> phút</div>
+                    <div class="sub-value">Real-time ETA</div>
+                </div>
+                <div class="kpi-card kpi-co2">
+                    <div class="icon"><i class="fa-solid fa-cloud-meatball"></i></div>
+                    <div class="title">Phát thải CO2</div>
+                    <div class="value"><span id="resCO2">0 - 0</span> g</div>
+                    <div class="sub-value">Biên độ tin cậy 98%</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="compareBox" class="compare-box">
+            <h4 class="compare-title"><i class="fa-solid fa-triangle-exclamation"></i> BÁO CÁO ĐÁNH ĐỔI (TRADE-OFF ANALYSIS)</h4>
+            <p style="text-align: center; margin: 0 0 10px 0; font-size: 14px;">Tuyến đang chọn: <span id="selTraffic" style="font-weight:bold;"></span></p>
+            <div class="compare-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Khoảng cách</div>
+                    <div id="diffDist" class="diff-bad">0 km</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Thời gian</div>
+                    <div id="diffTime" class="diff-bad">0 phút</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Phát thải CO2</div>
+                    <div id="diffCO2" class="diff-bad">0 g</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+</div>
+
+<script>
+    var GOONG_API_KEY = "4vlpaX4oySFd4X8WhmGvAjnrAiN5V7LhmaNeMWOj"; 
+    var map;
+    var currentPolylines = []; 
+    var optimalData = null; 
+    var markers = [];
+
+    // --- CÁC HẰNG SỐ CÔNG THỨC CO2 NCKH ---
+    var heSoA_Min = 1.82;       
+    var heSoA_Max = 1.83;       
+    var phatThaiCO2_Lit = 2348; 
+    var tieuHao_Bth = 0.02;     
+    
+    var V_bth = 20; 
+    var V_tac = 6;  
+    var saiSoCoHoc = 0.02; 
+
+    document.getElementById("btnGPS").addEventListener("click", function() {
+        var btn = this;
+        var inputEle = document.getElementById("startInput");
+        if (navigator.geolocation) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dò';
+            navigator.geolocation.getCurrentPosition(async function(position) {
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                try {
+                    var url = "https://rsapi.goong.io/Geocode?latlng=" + lat + "," + lng + "&api_key=" + GOONG_API_KEY;
+                    var res = await fetch(url);
+                    var data = await res.json();
+                    if (data.results && data.results.length > 0) {
+                        inputEle.value = "📍 " + data.results[0].formatted_address; 
+                        inputEle.dataset.lat = lat;
+                        inputEle.dataset.lon = lng;
+                    }
+                } catch (e) {}
+                btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Vị trí';
+            }, function() { alert("Lỗi GPS!"); btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Vị trí'; }, { enableHighAccuracy: true });
+        }
+    });
+
+    function decodePolyline(encoded) {
+        var points = [];
+        var index = 0, len = encoded.length;
+        var lat = 0, lng = 0;
+        while (index < len) {
+            var b, shift = 0, result = 0;
+            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+            var dlat = ((result & 1) ? ~(result >> 1) : (result >> 1)); lat += dlat;
+            shift = 0, result = 0;
+            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+            var dlng = ((result & 1) ? ~(result >> 1) : (result >> 1)); lng += dlng;
+            points.push([lat / 1e5, lng / 1e5]);
+        }
+        return points;
+    }
+
+    function setupAutocomplete(inputId, listId) {
+        var inputEle = document.getElementById(inputId);
+        var listEle = document.getElementById(listId);
+        var searchTimeout = null;
+        
+        inputEle.addEventListener("input", function() {
+            clearTimeout(searchTimeout);
+            inputEle.dataset.lat = ""; inputEle.dataset.lon = "";
+            if (this.value.trim().length < 2) { listEle.style.display = "none"; return; }
+
+            searchTimeout = setTimeout(async function() {
+                try {
+                    var url = "https://rsapi.goong.io/Place/AutoComplete?api_key=" + GOONG_API_KEY + "&input=" + encodeURIComponent(inputEle.value) + "&limit=10";
+                    var data = await (await fetch(url)).json();
+                    listEle.innerHTML = "";
+                    if (data.predictions) {
+                        data.predictions.forEach(function(place) {
+                            var item = document.createElement("div");
+                            item.className = "suggestion-item";
+                            item.innerHTML = '<i class="fa-solid fa-location-dot" style="color:#94a3b8; margin-right:8px;"></i>' + place.description;
+                            item.onclick = async function() {
+                                inputEle.value = place.description;
+                                listEle.style.display = "none";
+                                try {
+                                    var detailData = await (await fetch("https://rsapi.goong.io/Place/Detail?place_id=" + place.place_id + "&api_key=" + GOONG_API_KEY)).json();
+                                    inputEle.dataset.lat = detailData.result.geometry.location.lat;
+                                    inputEle.dataset.lon = detailData.result.geometry.location.lng;
+                                } catch (err) {}
+                            };
+                            listEle.appendChild(item);
+                        });
+                        listEle.style.display = "block";
+                    }
+                } catch (e) {}
+            }, 300); 
+        });
+    }
+
+    setupAutocomplete("startInput", "startList");
+    setupAutocomplete("endInput", "endList");
+
+    document.addEventListener("click", function(e) {
+        if (!e.target.closest('.suggestion-item') && e.target.tagName !== "INPUT") {
+            document.getElementById("startList").style.display = "none";
+            document.getElementById("endList").style.display = "none";
+        }
+    });
+
+    document.getElementById("btnTinhToan").addEventListener("click", async function() {
+        var startLat = document.getElementById("startInput").dataset.lat;
+        var startLon = document.getElementById("startInput").dataset.lon;
+        var endLat = document.getElementById("endInput").dataset.lat;
+        var endLon = document.getElementById("endInput").dataset.lon;
+
+        if (!startLat || !endLat) { alert("⚠️ Vui lòng chọn địa điểm có tọa độ hợp lệ!"); return; }
+
+        var loadingText = document.getElementById("loadingText");
+        var resultBox = document.getElementById("resultBox");
+        var compareBox = document.getElementById("compareBox");
+        var mapDiv = document.getElementById("map");
+        
+        loadingText.style.display = "block";
+        resultBox.style.display = "none";
+        compareBox.style.display = "none";
+
+        try {
+            var goongDirectionUrl = "https://rsapi.goong.io/Direction?origin=" + startLat + "," + startLon + "&destination=" + endLat + "," + endLon + "&vehicle=bike&alternatives=true&api_key=" + GOONG_API_KEY;
+            var response = await fetch(goongDirectionUrl);
+            var data = await response.json();
+
+            if (data.error) {
+                alert("🚫 LỖI API: " + data.error.message);
+                loadingText.style.display = "none"; return;
+            }
+
+            if (data.routes && data.routes.length > 0) {
+                loadingText.style.display = "none";
+                resultBox.style.display = "block";
+                mapDiv.style.display = "block";
+
+                if (!map) {
+                    map = L.map('map').setView([21.0285, 105.8542], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+                }
+                setTimeout(function() { map.invalidateSize(); }, 300);
+
+                currentPolylines.forEach(function(line) { map.removeLayer(line); });
+                currentPolylines = [];
+                markers.forEach(function(m) { map.removeLayer(m); });
+                markers = [];
+
+                var bounds = L.latLngBounds();
+
+                data.routes.forEach(function(routeData, index) {
+                    if (!routeData.legs || !routeData.legs[0]) return; 
+
+                    var route = routeData.legs[0];
+                    var distanceKm = route.distance.value / 1000;
+                    var durationHour = (route.duration.value / 60) / 60; 
+                    var durationMin = route.duration.value / 60;
+                    var speedKmH = distanceKm / durationHour;
+                    
+                    var d_bth = 0; var d_tac = 0;
+
+                    if (speedKmH >= V_bth) { d_bth = distanceKm; d_tac = 0; } 
+                    else if (speedKmH <= V_tac) { d_bth = 0; d_tac = distanceKm; } 
+                    else {
+                        d_tac = (durationHour - (distanceKm / V_bth)) / ((1 / V_tac) - (1 / V_bth));
+                        d_bth = distanceKm - d_tac;
+                    }
+
+                    d_tac = Math.max(0, d_tac); d_bth = Math.max(0, d_bth);
+
+                    var co2Goc_Min = phatThaiCO2_Lit * tieuHao_Bth * (d_bth + (d_tac * heSoA_Min));
+                    var co2Min = co2Goc_Min * (1 - saiSoCoHoc);
+                    var co2Goc_Max = phatThaiCO2_Lit * tieuHao_Bth * (d_bth + (d_tac * heSoA_Max));
+                    var co2Max = co2Goc_Max * (1 + saiSoCoHoc);
+                    var totalCO2_TrungBinh = (co2Min + co2Max) / 2;
+
+                    var trafficLabel = ""; var trafficClass = ""; var trafficIcon = ""; var optimalColor = "#10b981"; 
+                    var tyLeTac = d_tac / distanceKm;
+
+                    if (tyLeTac > 0.4) { trafficLabel = "Kẹt xe nặng"; trafficIcon="<i class='fa-solid fa-triangle-exclamation'></i>"; trafficClass = "status-jam"; optimalColor = "#ef4444"; } 
+                    else if (tyLeTac > 0.1) { trafficLabel = "Đường đông"; trafficIcon="<i class='fa-solid fa-car-side'></i>"; trafficClass = "status-slow"; optimalColor = "#f59e0b"; } 
+                    else { trafficLabel = "Đường thoáng"; trafficIcon="<i class='fa-solid fa-check-circle'></i>"; trafficClass = "status-fast"; optimalColor = "#10b981"; }
+
+                    var routeCoords = decodePolyline(routeData.overview_polyline.points);
+                    var isOptimal = (index === 0);
+
+                    if (isOptimal) {
+                        optimalData = { dist: distanceKm, duration: durationMin, co2Avg: totalCO2_TrungBinh, trafficTxt: trafficLabel, trafficCls: trafficClass, color: optimalColor };
+                        
+                        document.getElementById("resDistance").innerText = distanceKm.toFixed(2);
+                        document.getElementById("resDistBth").innerText = d_bth.toFixed(2);
+                        document.getElementById("resDistTac").innerText = d_tac.toFixed(2);
+                        document.getElementById("resDuration").innerText = durationMin.toFixed(1);
+                        document.getElementById("resCO2").innerText = co2Min.toFixed(0) + " - " + co2Max.toFixed(0);
+                        
+                        document.getElementById("resTraffic").innerHTML = trafficIcon + " " + trafficLabel;
+                        document.getElementById("resTraffic").className = "traffic-status " + trafficClass;
+                    }
+
+                    var lineOptions = isOptimal 
+                        ? { color: optimalColor, weight: 8, opacity: 0.9 } 
+                        : { color: '#94a3b8', weight: 6, opacity: 0.8, dashArray: '8, 8' }; 
+
+                    var polyline = L.polyline(routeCoords, lineOptions).addTo(map);
+                    routeCoords.forEach(function(coord) { bounds.extend(coord); });
+
+                    if (!isOptimal) {
+                        polyline.on('click', function(e) {
+                            currentPolylines.forEach(function(l) { 
+                                if(l.options.dashArray) l.setStyle({ color: '#94a3b8', opacity: 0.8 }); 
+                            });
+                            this.setStyle({ color: '#3b82f6', opacity: 1 });
+
+                            var diffDist = distanceKm - optimalData.dist;
+                            var diffTime = durationMin - optimalData.duration;
+                            var diffCO2 = totalCO2_TrungBinh - optimalData.co2Avg; 
+
+                            var selTraf = document.getElementById("selTraffic");
+                            selTraf.innerText = trafficLabel;
+                            selTraf.style.color = optimalColor;
+
+                            var distTxt = document.getElementById("diffDist");
+                            var timeTxt = document.getElementById("diffTime");
+                            var co2Txt = document.getElementById("diffCO2");
+
+                            distTxt.innerHTML = (diffDist > 0 ? "Xa thêm<br>+" : "Ngắn hơn<br>") + Math.abs(diffDist).toFixed(2) + " km";
+                            distTxt.className = diffDist > 0 ? "diff-bad" : "diff-good";
+
+                            timeTxt.innerHTML = (diffTime > 0 ? "Chậm mất<br>+" : "Nhanh hơn<br>") + Math.abs(diffTime).toFixed(1) + " phút";
+                            timeTxt.className = diffTime > 0 ? "diff-bad" : "diff-good";
+
+                            co2Txt.innerHTML = (diffCO2 > 0 ? "TĂNG KHOẢNG<br>+" : "TIẾT KIỆM<br>-") + Math.abs(diffCO2).toFixed(0) + " g";
+                            co2Txt.className = diffCO2 > 0 ? "diff-bad" : "diff-good";
+
+                            compareBox.style.display = "block";
+                            L.DomEvent.stopPropagation(e);
+                        });
+                    }
+                    currentPolylines.push(polyline);
+                });
+
+                var startIcon = L.divIcon({ html: '<i class="fa-solid fa-location-dot fa-2x" style="color:#3b82f6; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);"></i>', className: 'custom-icon', iconSize: [24, 24], iconAnchor: [12, 24] });
+                var endIcon = L.divIcon({ html: '<i class="fa-solid fa-flag-checkered fa-2x" style="color:#ef4444; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);"></i>', className: 'custom-icon', iconSize: [24, 24], iconAnchor: [12, 24] });
+
+                var startMarker = L.marker([startLat, startLon], {icon: startIcon}).addTo(map).bindPopup("<b>Khởi hành:</b><br>" + document.getElementById("startInput").value);
+                var endMarker = L.marker([endLat, endLon], {icon: endIcon}).addTo(map).bindPopup("<b>Đích đến:</b><br>" + document.getElementById("endInput").value);
+                markers.push(startMarker, endMarker);
+
+                map.fitBounds(bounds, {padding: [40, 40]});
+
+            } else { alert("Goong API không tìm thấy đường đi."); loadingText.style.display = "none"; }
+        } catch (err) { alert("🚨 LỖI: " + err.message); loadingText.style.display = "none"; }
+    });
+</script>
+
+</body>
+</html>
